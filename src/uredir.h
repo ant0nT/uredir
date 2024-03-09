@@ -20,7 +20,7 @@
 extern int inetd;
 extern int timeout;
 
-int redirect_init(uev_ctx_t *ctx, char *src, short src_port, char *dst, short dst_port);
+int redirect_init(uev_ctx_t *ctx, char *src, short src_port, char *dst, short dst_port, char * out_nic_name);
 int redirect_exit(void);
 
 #endif /* UREDIR_H_ */

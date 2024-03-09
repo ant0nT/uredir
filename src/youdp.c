@@ -32,6 +32,15 @@
 #include <unistd.h>
 #include <uev/uev.h>
 #include "uredir.h"
+#include "errorname/errnoname.h"
+#include <errno.h>
+#include <net/if.h>
+#include <netinet/in.h>
+#include <sys/ioctl.h>
+#include <sys/socket.h>
+
+
+// #include "vrg.h"
 
 #define _d(fmt, args...)					\
 	syslog(LOG_DEBUG, "DBG %-15s " fmt, __func__, ##args)
@@ -162,10 +171,10 @@ static struct in_addr *peek(int sd, void *name, socklen_t len)
 	return NULL;
 }
 
-int sock_new(int *sock)
+int sock_new(int *sock, char * nic_name)
 {
 	int sd = *sock;
-	int opt = 0, on = 1;
+	int opt = 1, on = 1;
 
 	if (sd < 0) {
 		sd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -181,14 +190,44 @@ int sock_new(int *sock)
 	/* At least on Linux the obnoxious IP_MULTICAST_ALL flag is set by default */
 	if (setsockopt(sd, IPPROTO_IP, IP_MULTICAST_ALL, &opt, sizeof(opt)))
 		goto error;
+	
+	int reuse=1;
+
+    if (setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, (char *)&reuse, sizeof(reuse)))
+		goto error; 
 
 	if (setsockopt(sd, SOL_IP, IP_PKTINFO, &on, sizeof(on)))
 		goto error;
+
+	if (nic_name != NULL)
+	{
+		// nic_name = "eth0@if5";
+		printf("%s\n", nic_name);
+		printf("strlen: %d\n", strlen(nic_name));
+		// struct ifreq ifr;
+		// memset(&ifr, 0, sizeof(ifr));
+		// snprintf(ifr.ifr_name, sizeof(ifr.ifr_name), &nic_name);
+		// if (setsockopt(sd, SOL_SOCKET, SO_BINDTODEVICE, (void*)&ifr, sizeof(ifr)))
+		if (setsockopt(sd, SOL_SOCKET, SO_BINDTODEVICE, nic_name, strlen(nic_name) + 1))
+			goto error;
+	}
+	
 
 	*sock = sd;
 	return 0;
 
 error:
+	char const * error_name;
+	error_name = errnoname(errno);
+	if(!error_name)
+    {
+        printf("unknown error number: %d\n", errno);
+    }
+    else
+    {
+        printf("error: %s\n", error_name);
+    }
+
 	close(sd);
 	return -1;
 }
@@ -265,7 +304,7 @@ static struct conn *conn_new(uev_ctx_t *ctx, struct in_addr *local, struct socka
 	c->remote = hdr->msg_name;
 	c->local = *local;
 
-	if (sock_new(&c->sd)) {
+	if (sock_new(&c->sd, NULL)) {
 		free(c);
 		hdr_free(hdr);
 		return NULL;
@@ -370,17 +409,21 @@ static void outer_to_inner(uev_t *w, void *arg, int events)
 		timer_reset(c);
 }
 
-static int outer_init(char *addr, short port)
+static int outer_init(char *addr, short port, char * nic_name) 
 {
+
 	int sd = -1;
 
-	if (sock_new(&sd))
+	if (sock_new(&sd, nic_name))
 		return -1;
 
 	memset(&outer, 0, sizeof(outer));
 	outer.sin_family = AF_INET;
 	inet_aton(addr, &outer.sin_addr);
 	outer.sin_port = htons(port);
+	
+
+
 	if (bind(sd, (struct sockaddr *)&outer, sizeof(outer))) {
 		_e("Failed binding to %s:%d: %m", addr, port);
 		return -1;
@@ -391,8 +434,9 @@ static int outer_init(char *addr, short port)
 	return sd;
 }
 
-int redirect_init(uev_ctx_t *ctx, char *src, short src_port, char *dst, short dst_port)
+int redirect_init(uev_ctx_t *ctx, char *src, short src_port, char *dst, short dst_port, char * out_nic_name)
 {
+
 	int sd;
 
 	memset(&inner, 0, sizeof(inner));
@@ -403,10 +447,12 @@ int redirect_init(uev_ctx_t *ctx, char *src, short src_port, char *dst, short ds
 	if (!src) {
 		/* Running as an inetd service */
 		sd = STDIN_FILENO;
-		if (sock_new(&sd))
+		if (sock_new(&sd, NULL))
 			return 1;
 	} else {
-		sd = outer_init(src, src_port);
+		sd = outer_init(src, src_port, out_nic_name);
+		printf("101\n");
+		printf("sd: %d", sd);
 		if (sd < 0)
 			return 1;
 	}

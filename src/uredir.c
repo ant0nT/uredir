@@ -120,15 +120,15 @@ int main(int argc, char *argv[])
 	int log_opts = LOG_CONS | LOG_PID;
 	int loglevel = LOG_NOTICE;
 	char src[20], dst[20];
+	char * out_nic_name = NULL;
 	uev_t sigalarm_watcher, sighup_watcher, sigint_watcher, sigquit_watcher, sigterm_watcher;
 	uev_ctx_t ctx;
 
 	ident = prognm = progname(argv[0]);
-	while ((c = getopt(argc, argv, "hiI:l:nst:v")) != EOF) {
+	while ((c = getopt(argc, argv, "hiI:l:nst:E:v")) != EOF) {
 		switch (c) {
 		case 'h':
 			return usage(0);
-
 		case 'i':
 			inetd = 1;
 			background = 0;
@@ -156,7 +156,12 @@ int main(int argc, char *argv[])
 		case 't':
 			timeout = atoi(optarg);
 			break;
-
+		
+		case 'E':
+			printf("1\n");
+			out_nic_name = optarg;
+			printf("2\n");
+			break;
 		case 'v':
 			return version();
 
@@ -164,15 +169,15 @@ int main(int argc, char *argv[])
 			return usage(-1);
 		}
 	}
-
+	printf("3\n");
 	if (!background && do_syslog < 1)
 		log_opts |= LOG_PERROR;
 	openlog(ident, log_opts, LOG_DAEMON);
 	setlogmask(LOG_UPTO(loglevel));
-
+	printf("4\n");
 	if (optind >= argc)
 		return usage(-2);
-
+	printf("5\n");
 	if (inetd) {
 		/* In inetd mode we redirect from src=stdin to dst:port */
 		dst_port = parse_ipport(argv[optind], dst, sizeof(dst));
@@ -187,19 +192,22 @@ int main(int argc, char *argv[])
 
 		dst_port = parse_ipport(argv[optind], dst, sizeof(dst));
 	}
-
+	printf("6\n");
 	/* If no dst, then user wants to echo everything back to src */
 	if (-1 == dst_port) {
+		printf("85\n");
 		fprintf(stderr, "Missing DST:PORT, aborting.\n");
 		return 1;
 	}
-
+	printf("7\n");
 	if (background) {
 		if (-1 == daemon(0, 0)) {
+			printf("86\n");
 			syslog(LOG_ERR, "Failed daemonizing: %m");
 			return 2;
 		}
 	}
+	printf("8\n");
 
 	uev_init(&ctx);
 	uev_signal_init(&ctx, &sigalarm_watcher, exit_cb, NULL, SIGALRM);
@@ -207,16 +215,17 @@ int main(int argc, char *argv[])
 	uev_signal_init(&ctx, &sigint_watcher,   exit_cb, NULL, SIGINT);
 	uev_signal_init(&ctx, &sigquit_watcher,  exit_cb, NULL, SIGQUIT);
 	uev_signal_init(&ctx, &sigterm_watcher,  exit_cb, NULL, SIGTERM);
-
+	printf("9\n");
 	if (inetd) {
-		if (redirect_init(&ctx, NULL, 0, dst, dst_port))
+		if (redirect_init(&ctx, NULL, 0, dst, dst_port, out_nic_name))
 			return 1;
 	} else {
-		if (redirect_init(&ctx, src, src_port, dst, dst_port))
+		if (redirect_init(&ctx, src, src_port, dst, dst_port, out_nic_name))
 			return 1;
 	}
-
+	printf("90\n");
 	uev_run(&ctx, UEV_NONE);
+	printf("99\n");
 	redirect_exit();
 }
 
