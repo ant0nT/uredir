@@ -1,0 +1,1 @@
+cmake -DLIBUEV_PATH=/home/user/reps/libuev-2.4.1/install_x86/ -DCMAKE_TOOLCHAIN_FILE="/home/user/reps/libuev-2.4.1/toolchains/x86/x86_toolchain.cmake" -B ./build_x86 -S ./ --install-prefix /home/user/reps/uredir/install_x86

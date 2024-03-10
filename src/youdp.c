@@ -402,6 +402,7 @@ static void outer_to_inner(uev_t *w, void *arg, int events)
 
 	_d("");
 	conn_dump(c);
+	// todo check ip sender and ip remote
 
 	if (send(c->sd, c->hdr->msg_iov->iov_base, len, 0) == -1)
 		conn_end(c);
