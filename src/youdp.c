@@ -38,6 +38,7 @@
 #include <netinet/in.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
+#include <ifaddrs.h>
 
 
 // #include "vrg.h"
@@ -175,6 +176,7 @@ int sock_new(int *sock, char * nic_name)
 {
 	int sd = *sock;
 	int opt = 1, on = 1;
+	char const * error_name;
 
 	if (sd < 0) {
 		sd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -217,7 +219,6 @@ int sock_new(int *sock, char * nic_name)
 	return 0;
 
 error:
-	char const * error_name;
 	error_name = errnoname(errno);
 	if(!error_name)
     {
@@ -362,6 +363,7 @@ static void outer_to_inner(uev_t *w, void *arg, int events)
 	struct conn *c;
 	ssize_t len;
 
+
 	_d("\n");
 	if (events & UEV_ERROR) {
 		uev_exit(w->ctx);
@@ -369,6 +371,18 @@ static void outer_to_inner(uev_t *w, void *arg, int events)
 	}
 
 	local = peek(w->fd, &sin, sizeof(sin));
+	// struct sockaddr_in *addr_in = (struct sockaddr_in *)sin;
+
+
+	char ipAddress[INET_ADDRSTRLEN];
+	inet_ntop(AF_INET, &(sin.sin_addr), ipAddress, INET_ADDRSTRLEN);
+	printf("src: %s\n", ipAddress);
+
+
+	
+
+
+
 	if (!local) {
 		if (inetd)
 			uev_exit(w->ctx);
@@ -403,6 +417,13 @@ static void outer_to_inner(uev_t *w, void *arg, int events)
 	_d("");
 	conn_dump(c);
 	// todo check ip sender and ip remote
+		if (local->s_addr == sin.sin_addr.s_addr)
+	{
+		printf("looping package: %s\n", ipAddress);
+		// return;
+		// uev_exit(w->ctx);
+		return;
+	}
 
 	if (send(c->sd, c->hdr->msg_iov->iov_base, len, 0) == -1)
 		conn_end(c);
